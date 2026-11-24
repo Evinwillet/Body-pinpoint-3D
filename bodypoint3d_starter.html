@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BodyPoint 3D — Pain Mapper</title>
+<style>
+:root{--bg:#091426;--panel:#12233b;--line:#29415f;--text:#eef6ff;--muted:#a8bbd2;--blue:#32a9ff}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(145deg,#07101f,#102744);color:var(--text);font:15px system-ui,Arial}
+header{padding:18px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+h1{margin:0;font-size:23px}header p{margin:3px 0 0;color:var(--muted);font-size:13px}
+main{max-width:1150px;margin:auto;padding:16px;display:grid;grid-template-columns:minmax(0,1.5fr) minmax(280px,1fr);gap:15px}
+.panel{background:rgba(18,35,59,.94);border:1px solid var(--line);border-radius:16px;padding:14px;min-width:0}
+.toolbar{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:10px}
+button,select,input,textarea{font:inherit}
+button{background:#1b3657;color:var(--text);border:1px solid #3a5b80;border-radius:10px;padding:9px 12px;cursor:pointer}
+button:hover,button.active{border-color:var(--blue);background:#164a76}
+button.primary{background:#0878c9;border-color:#36aaff;font-weight:700}
+button.danger{border-color:#9b5260}
+#stage{height:540px;width:100%;border-radius:13px;overflow:hidden;background:radial-gradient(ellipse at 50% 40%,#244767,#0a1728 72%);position:relative}
+#stage canvas{display:block;width:100%;height:100%;touch-action:none}
+.hint{font-size:12px;color:var(--muted);margin:9px 2px 0;line-height:1.45}
+h2{font-size:16px;margin:0 0 11px}
+label{display:block;color:#c8d9eb;font-size:13px;margin:10px 0 5px}
+input,select,textarea{width:100%;background:#0a192c;border:1px solid #36506e;color:var(--text);border-radius:9px;padding:10px}
+textarea{resize:vertical;min-height:72px}
+.row{display:flex;gap:8px}.row>*{flex:1;min-width:0}
+.pills{display:flex;gap:7px;flex-wrap:wrap}
+.pills button{flex:1;min-width:75px}
+#selection{font-weight:700;color:#75c5ff;min-height:24px}
+#points{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.point{padding:9px;border:1px solid var(--line);border-radius:10px;background:#0d1d31;font-size:13px;display:flex;justify-content:space-between;gap:8px;align-items:center}
+.point small{display:block;color:var(--muted);margin-top:3px}
+.note{font-size:12px;color:var(--muted);line-height:1.5}
+footer{max-width:1150px;margin:0 auto;padding:0 16px 22px;color:var(--muted);font-size:12px}
+@media(max-width:780px){main{grid-template-columns:1fr;padding:10px}#stage{height:470px}header{padding:14px}h1{font-size:20px}}
+@media print{body{background:white;color:#111}header,.toolbar,#stage,.no-print,footer{display:none!important}main{display:block;padding:0}.panel{background:white;color:#111;border:0;padding:0}#points .point{background:white;color:#111;border-color:#aaa}#points small{color:#444}.report-head{display:block!important}}
+.report-head{display:none}
+</style>
+</head>
+<body>
+<header><div><h1>✚ BodyPoint 3D</h1><p>Pinpoint • Describe • Share with your doctor</p></div><span style="font-size:12px;color:#8bcfff">Interactive starter app</span></header>
+<main>
+<section class="panel">
+ <div class="toolbar">
+  <button id="male" class="active">♂ Male model</button><button id="female">♀ Female model</button>
+  <button id="front" class="active">Front</button><button id="back">Back</button><button id="side">Side</button>
+ </div>
+ <div class="toolbar">
+  <button id="skin" class="active">Skin</button><button id="muscles">Muscles</button><button id="skeleton">Skeleton</button><button id="organs">Organs</button>
+  <button id="reset">Reset view</button>
+ </div>
+ <div id="stage" aria-label="Interactive 3D human model"></div>
+ <p class="hint">Drag to rotate • Scroll or pinch to zoom • Tap a body part to select it. Use the layer buttons to show or hide anatomy layers. This starter model uses illustrative geometry, not clinical-grade anatomy.</p>
+</section>
+<aside class="panel">
+ <div class="report-head"><h1>BodyPoint 3D — Pain location report</h1><p>Patient-described locations for discussion with a healthcare professional.</p><hr></div>
+ <h2>Selected body area</h2><div id="selection">No area selected — tap the 3D model</div>
+ <label for="level">Pain intensity</label><select id="level"><option>Mild</option><option selected>Moderate</option><option>Severe</option></select>
+ <label for="description">What does it feel like? (optional)</label><textarea id="description" placeholder="Example: sharp pain when lifting my arm..."></textarea>
+ <div class="row no-print" style="margin-top:10px"><button class="primary" id="add">＋ Save pain location</button><button id="clearSelection">Clear selection</button></div>
+ <hr style="border-color:var(--line);margin:16px 0">
+ <div class="row" style="align-items:center"><h2 style="margin:0;flex:1">Saved pain locations</h2><button class="no-print danger" id="clearAll">Clear all</button></div>
+ <div id="points"><p class="note">No locations saved yet.</p></div>
+ <button class="primary no-print" id="pdf" style="width:100%;margin-top:14px">Print / Save doctor report as PDF</button>
+ <p class="note no-print">Choose “Save as PDF” in your browser's print dialog. The report includes each saved location, pain level and your notes.</p>
+</aside>
+</main>
+<footer>Privacy: this demo keeps entries in this page only; it does not upload or send health information. It is not a diagnostic tool. A clinician should verify anatomy and interpretation.</footer>
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+import {OrbitControls} from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+const stage=document.querySelector('#stage');
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x10233a);
+const camera=new THREE.PerspectiveCamera(35,stage.clientWidth/stage.clientHeight,.1,100);camera.position.set(0,1.5,8.7);
+const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(stage.clientWidth,stage.clientHeight);renderer.outputColorSpace=THREE.SRGBColorSpace;stage.appendChild(renderer.domElement);
+const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.target.set(0,1.25,0);controls.minDistance=3.5;controls.maxDistance=13;
+scene.add(new THREE.HemisphereLight(0xd8edff,0x283448,2));
+const key=new THREE.DirectionalLight(0xffffff,2.2);key.position.set(4,6,7);scene.add(key);
+const rim=new THREE.DirectionalLight(0x4baeff,1.5);rim.position.set(-5,3,-4);scene.add(rim);
+const floor=new THREE.Mesh(new THREE.CircleGeometry(2.1,64),new THREE.MeshBasicMaterial({color:0x1b3b58,transparent:true,opacity:.5}));floor.rotation.x=-Math.PI/2;floor.position.y=-.03;scene.add(floor);
+let body=new THREE.Group();scene.add(body);let objects=[],layers={skin:[],muscles:[],skeleton:[],organs:[]},selected=null,sex='male',activeLayer='skin',saved=[];
+const mats={
+ skin:new THREE.MeshStandardMaterial({color:0xc98f70,roughness:.72}),
+ muscle:new THREE.MeshStandardMaterial({color:0xa74742,roughness:.75}),
+ bone:new THREE.MeshStandardMaterial({color:0xe7dfc9,roughness:.85}),
+ organ:new THREE.MeshStandardMaterial({color:0x9d4c54,roughness:.7}),
+ joint:new THREE.MeshStandardMaterial({color:0xd3b99a}),
+ selected:new THREE.MeshStandardMaterial({color:0x39b8ff,emissive:0x124d78,roughness:.5})
+};
+function addMesh(geo,mat,pos,scale,name,layer,parent=body){let m=new THREE.Mesh(geo,mat);m.position.set(...pos);m.scale.set(...scale);m.userData={name,layer,base:mat};parent.add(m);layers[layer].push(m);objects.push(m);return m}
+function ell(name,pos,scale,layer,mat){return addMesh(new THREE.SphereGeometry(1,24,18),mat,pos,scale,name,layer)}
+function limb(name,a,b,r1,r2,layer,mat){let A=new THREE.Vector3(...a),B=new THREE.Vector3(...b),d=B.clone().sub(A);let m=addMesh(new THREE.CylinderGeometry(r2,r1,d.length(),18),mat,A.clone().add(B).multiplyScalar(.5).toArray(),[1,1,1],name,layer);m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.normalize());return m}
+function build(){
+ body.clear();objects=[];layers={skin:[],muscles:[],skeleton:[],organs:[]};selected=null;
+ const s=sex==='female'?0.94:1;
+ // Surface silhouette: head, neck, torso, pelvis, arms, legs, hands and feet.
+ ell('Head',[0,2.93,0],[.36,.46,.32],'skin',mats.skin);
+ ell('Neck',[0,2.43,0],[.17,.27,.18],'skin',mats.skin);
+ ell('Chest',[0,1.91,0],[.67*s,.64,.34],'skin',mats.skin);
+ ell('Abdomen',[0,1.28,0],[.48*s,.57,.29],'skin',mats.skin);
+ ell('Pelvis',[0,.77,0],[.52*s,.36,.32],'skin',mats.skin);
+ for(let side of [-1,1]){
+  ell(side<0?'Left shoulder':'Right shoulder',[side*.69,2.22,0],[.25,.26,.25],'skin',mats.skin);
+  limb(side<0?'Left upper arm':'Right upper arm',[side*.76,2.15,0],[side*.91,1.38,0],.19,.145,'skin',mats.skin);
+  ell(side<0?'Left elbow':'Right elbow',[side*.91,1.36,0],[.15,.15,.15],'skin',mats.skin);
+  limb(side<0?'Left forearm':'Right forearm',[side*.91,1.34,0],[side*1.01,.59,.02],.14,.095,'skin',mats.skin);
+  ell(side<0?'Left hand':'Right hand',[side*1.02,.43,.03],[.13,.23,.085],'skin',mats.skin);
+  limb(side<0?'Left thigh':'Right thigh',[side*.29,.66,0],[side*.34,-.32,0],.25,.18,'skin',mats.skin);
+  ell(side<0?'Left knee':'Right knee',[side*.34,-.35,0],[.19,.2,.2],'skin',mats.skin);
+  limb(side<0?'Left lower leg':'Right lower leg',[side*.34,-.43,0],[side*.37,-1.34,.03],.17,.105,'skin',mats.skin);
+  ell(side<0?'Left foot':'Right foot',[side*.37,-1.49,.15],[.16,.13,.34],'skin',mats.skin);
+ }
+ // Muscle layer, separately selectable.
+ ell('Chest muscles', [0,1.94,.285],[.52,.32,.09],'muscles',mats.muscle);
+ ell('Abdominal muscles',[0,1.34,.285],[.32,.43,.07],'muscles',mats.muscle);
+ for(let side of [-1,1]){
+  ell('Deltoid muscle',[side*.69,2.22,.06],[.2,.22,.2],'muscles',mats.muscle);
+  limb('Biceps',[side*.76,2.1,.12],[side*.9,1.55,.1],.105,.075,'muscles',mats.muscle);
+  limb('Quadriceps',[side*.29,.55,.12],[side*.34,-.25,.12],.14,.12,'muscles',mats.muscle);
+  limb('Calf muscle',[side*.35,-.53,-.1],[side*.37,-1.2,-.08],.12,.08,'muscles',mats.muscle);
+ }
+ // Simplified skeleton layer.
+ ell('Skull',[0,2.94,-.015],[.3,.39,.28],'skeleton',mats.bone);
+ limb('Spine',[0,2.35,-.12],[0,.87,-.12],.075,.075,'skeleton',mats.bone);
+ ell('Pelvic bone',[0,.77,-.03],[.43,.22,.24],'skeleton',mats.bone);
+ for(let side of [-1,1]){
+  limb('Humerus',[side*.68,2.18,-.02],[side*.9,1.38,-.02],.065,.05,'skeleton',mats.bone);
+  limb('Forearm bone',[side*.9,1.34,-.02],[side*1,.62,-.02],.045,.035,'skeleton',mats.bone);
+  limb('Femur',[side*.27,.65,-.02],[side*.34,-.36,-.02],.09,.07,'skeleton',mats.bone);
+  limb('Tibia',[side*.34,-.4,-.02],[side*.37,-1.36,-.02],.06,.045,'skeleton',mats.bone);
+ }
+ // Simplified internal organ shapes, not anatomically complete.
+ ell('Lungs',[ -.22,1.93,-.05],[.19,.35,.14],'organs',mats.organ);ell('Lungs',[.22,1.93,-.05],[.19,.35,.14],'organs',mats.organ);
+ ell('Heart',[.055,1.83,.11],[.12,.17,.12],'organs',new THREE.MeshStandardMaterial({color:0xb82f45}));
+ ell('Liver',[.22,1.35,-.02],[.24,.15,.13],'organs',new THREE.MeshStandardMaterial({color:0x87412e}));
+ ell('Stomach',[-.17,1.36,.02],[.16,.22,.12],'organs',new THREE.MeshStandardMaterial({color:0xc47a43}));
+ applyLayers();
+}
+function applyLayers(){for(let [layer,arr] of Object.entries(layers))arr.forEach(o=>o.visible=layer===activeLayer);if(selected)selected.material=selected.userData.base||mats.skin}
+function setLayer(layer){activeLayer=layer;document.querySelectorAll('[id=skin],[id=muscles],[id=skeleton],[id=organs]').forEach(b=>b.classList.toggle('active',b.id===layer));applyLayers()}
+function setView(v){if(v==='front'){camera.position.set(0,1.5,8.7)}if(v==='back'){camera.position.set(0,1.5,-8.7)}if(v==='side'){camera.position.set(8.7,1.5,0)}controls.target.set(0,1.25,0);controls.update()}
+['male','female'].forEach(id=>document.getElementById(id).onclick=()=>{sex=id;document.getElementById('male').classList.toggle('active',id==='male');document.getElementById('female').classList.toggle('active',id==='female');build()});
+['skin','muscles','skeleton','organs'].forEach(id=>document.getElementById(id).onclick=()=>setLayer(id));
+['front','back','side'].forEach(id=>document.getElementById(id).onclick=()=>{['front','back','side'].forEach(x=>document.getElementById(x).classList.toggle('active',x===id));setView(id)});
+document.getElementById('reset').onclick=()=>{setView('front');camera.position.set(0,1.5,8.7);controls.update()};
+const ray=new THREE.Raycaster(),pointer=new THREE.Vector2();
+renderer.domElement.addEventListener('pointerup',e=>{if(e.target!==renderer.domElement)return;const r=renderer.domElement.getBoundingClientRect();pointer.x=((e.clientX-r.left)/r.width)*2-1;pointer.y=-((e.clientY-r.top)/r.height)*2+1;ray.setFromCamera(pointer,camera);const hits=ray.intersectObjects(objects.filter(o=>o.visible),false);if(!hits.length)return;const obj=hits[0].object;if(selected&&selected!==obj)selected.material=selected.userData.base;selected=obj;selected.material=mats.selected;document.getElementById('selection').textContent=obj.userData.name;});
+document.getElementById('clearSelection').onclick=()=>{if(selected)selected.material=selected.userData.base;selected=null;document.getElementById('selection').textContent='No area selected — tap the 3D model'};
+function renderPoints(){const box=document.getElementById('points');box.innerHTML='';if(!saved.length){box.innerHTML='<p class="note">No locations saved yet.</p>';return}saved.forEach((p,i)=>{const d=document.createElement('div');d.className='point';const text=document.createElement('div');const strong=document.createElement('strong');strong.textContent=p.area+' — '+p.level;const small=document.createElement('small');small.textContent=p.note||'No description added';text.append(strong,small);const del=document.createElement('button');del.textContent='Remove';del.onclick=()=>{saved.splice(i,1);renderPoints()};d.append(text,del);box.append(d)})}
+document.getElementById('add').onclick=()=>{if(!selected){document.getElementById('selection').textContent='Please tap a visible body structure first.';return}saved.push({area:selected.userData.name,level:document.getElementById('level').value,note:document.getElementById('description').value});document.getElementById('description').value='';renderPoints();};
+document.getElementById('clearAll').onclick=()=>{saved=[];renderPoints()};
+document.getElementById('pdf').onclick=()=>{const rows=saved.map(p=>`<li><b>${escapeHtml(p.area)}</b> — ${escapeHtml(p.level)}<br>${escapeHtml(p.note||'No description')}</li>`).join('');const w=window.open('','_blank');if(!w){alert('Please allow pop-ups to create your report.');return}w.document.write(`<html><head><title>BodyPoint 3D Report</title></head><body style="font:16px Arial;padding:30px"><h1>BodyPoint 3D — Pain Location Report</h1><p>Patient-described locations for discussion with a healthcare professional.</p><ol>${rows||'<li>No pain locations saved.</li>'}</ol><p style="font-size:12px;color:#555">This report records user descriptions. It is not a diagnosis or a substitute for clinical examination.</p></body></html>`);w.document.close();w.focus();w.print()};
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function animate(){requestAnimationFrame(animate);controls.update();renderer.render(scene,camera)}animate();
+new ResizeObserver(()=>{const w=stage.clientWidth,h=stage.clientHeight;camera.aspect=w/h;camera.updateProjectionMatrix();renderer.setSize(w,h)}).observe(stage);
+build();
+</script>
+</body></html>
